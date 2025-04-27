@@ -17,14 +17,9 @@ services:
 
     depends_on:
       - mongodb
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.whoami.rule=Host(`dev.huzaifairfan.com`)"
-      - "traefik.http.routers.whoami.entrypoints=websecure"
-      - "traefik.http.routers.whoami.tls.certresolver=le"
+
     networks:
       - video_feed
-      - web
 
 
   mongodb:
@@ -60,6 +55,7 @@ services:
       - redis
     networks:
       - video_feed
+
   selenium_chrome:
     container_name: selenium_chrome
     image: selenium/standalone-chrome:130.0-chromedriver-130.0-20250414
@@ -96,5 +92,3 @@ volumes:
 networks:
   video_feed:
     driver: bridge
-  web:
-    external: true

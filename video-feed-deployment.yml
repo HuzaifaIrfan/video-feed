@@ -1,0 +1,290 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: video-feed
+---
+
+# MongoDB
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mongodb
+  namespace: video-feed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+      - name: mongodb
+        image: mongo:8-noble
+        ports:
+        - containerPort: 27017
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+      volumes:
+      - name: mongodb-data
+        persistentVolumeClaim:
+          claimName: mongodb-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: video-feed
+spec:
+  selector:
+    app: mongodb
+  ports:
+    - protocol: TCP
+      port: 27017
+      targetPort: 27017
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mongodb-pvc
+  namespace: video-feed
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+
+# Redis
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: video-feed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+      - name: redis
+        image: redis:7.4-alpine
+        command: ["redis-server"]
+        ports:
+        - containerPort: 6379
+        volumeMounts:
+        - name: redis-data
+          mountPath: /data
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "250m"
+      volumes:
+      - name: redis-data
+        persistentVolumeClaim:
+          claimName: redis-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: video-feed
+spec:
+  selector:
+    app: redis
+  ports:
+    - protocol: TCP
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-pvc
+  namespace: video-feed
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+
+# Selenium Chrome
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: selenium-chrome
+  namespace: video-feed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: selenium-chrome
+  template:
+    metadata:
+      labels:
+        app: selenium-chrome
+    spec:
+      containers:
+      - name: selenium-chrome
+        image: selenium/standalone-chrome:130.0-chromedriver-130.0-20250414
+        ports:
+        - containerPort: 4444
+        - containerPort: 7900
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "1"
+        securityContext:
+          privileged: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: selenium-chrome
+  namespace: video-feed
+spec:
+  selector:
+    app: selenium-chrome
+  ports:
+    - name: webdriver
+      protocol: TCP
+      port: 4444
+      targetPort: 4444
+    - name: vnc
+      protocol: TCP
+      port: 7900
+      targetPort: 7900
+---
+
+# Video Feed App
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: video-feed-app
+  namespace: video-feed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: video-feed-app
+  template:
+    metadata:
+      labels:
+        app: video-feed-app
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: video-feed-app
+        image: ghcr.io/huzaifairfan/video_feed_app:0.1
+        ports:
+        - containerPort: 3000
+        env:
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/"
+        - name: DATABASE
+          value: "video_feed_crawler"
+        - name: ADMIN_PASSWORD
+          value: "aa"
+        command: ["npm", "run", "start", "--", "-H", "0.0.0.0", "-p", "3000"]
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: video-feed-app
+  namespace: video-feed
+spec:
+  type: LoadBalancer
+  selector:
+    app: video-feed-app
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+---
+
+# Video Feed Crawler
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: video-feed-crawler
+  namespace: video-feed
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: video-feed-crawler
+  template:
+    metadata:
+      labels:
+        app: video-feed-crawler
+    spec:
+      imagePullSecrets:
+      - name: ghcr-secret
+      containers:
+      - name: video-feed-crawler
+        image: ghcr.io/huzaifairfan/video_feed_crawler:0.1
+        env:
+        - name: UV_LINK_MODE
+          value: "copy"
+        - name: SELENIUM_URL
+          value: "http://selenium-chrome:4444/wd/hub"
+        - name: MONGODB_URI
+          value: "mongodb://mongodb:27017/"
+        - name: DATABASE
+          value: "video_feed_crawler"
+        - name: CELERY_BROKER_URL
+          value: "redis://redis:6379/0"
+        command: ["sh", "-c"]
+        args: 
+          - "celery -A celery_app beat --loglevel=info & celery -A celery_app worker --loglevel=info"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
