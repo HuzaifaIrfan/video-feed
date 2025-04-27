@@ -18,8 +18,15 @@ services:
     depends_on:
       - mongodb
 
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.node.rule=Host(`dev.huzaifairfan.com`)"
+      - "traefik.http.routers.node.entrypoints=websecure"
+      - "traefik.http.routers.node.tls.certresolver=le"
+      - "traefik.http.services.node.loadbalancer.server.port=3000"
     networks:
       - video_feed
+      - web
 
 
   mongodb:
@@ -92,3 +99,5 @@ volumes:
 networks:
   video_feed:
     driver: bridge
+  web:
+    external: true
