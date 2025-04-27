@@ -1,5 +1,11 @@
 # video-feed
 
+## Create namespace
+
+```sh
+kubectl apply -f namespace.yml
+```
+
 ## Create GHCR PAT
 
 ```sh
@@ -17,6 +23,10 @@ kubectl get secrets -n video-feed
 kubectl apply -f video-feed-deployment.yml
 ```
 
+```sh
+kubectl apply -f video-feed-ingressroute.yml
+```
+
 ## See Deployment
 
 ```sh
@@ -26,6 +36,6 @@ kubectl get all -n video-feed
 ## Delete Deployment
 
 ```sh
-kubectl delete -f video-feed-deployment.yaml 
+kubectl delete -f video-feed-deployment.yml 
 ```
 
