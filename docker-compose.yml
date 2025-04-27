@@ -2,7 +2,8 @@ services:
   video_feed_app:
     container_name: video_feed_app        
     image: "ghcr.io/huzaifairfan/video_feed_app:0.1"
-
+    restart: unless-stopped
+    
     environment:
       - MONGODB_URI=mongodb://mongodb:27017/
       - DATABASE=video_feed_crawler
@@ -13,7 +14,6 @@ services:
 
     command: npm run start -- -H 0.0.0.0 -p 3000
 
-    restart: unless-stopped
 
     depends_on:
       - mongodb
@@ -30,17 +30,19 @@ services:
   mongodb:
     container_name: mongodb
     image: mongo:8-noble
+    restart: unless-stopped
+
     ports:
       - '27017:27017'
     volumes:
       - mongodb:/data/db
-    restart: unless-stopped 
     networks:
       - video_feed
       
   video_feed_crawler:
     container_name: video_feed_crawler        
     image: "ghcr.io/huzaifairfan/video_feed_crawler:0.1"
+    restart: unless-stopped
 
     environment:
       - UV_LINK_MODE=copy
@@ -52,9 +54,6 @@ services:
     command: >
       sh -c "celery -A celery_app beat --loglevel=info & 
              celery -A celery_app worker --loglevel=info"
-
-    restart: unless-stopped
-
     depends_on:
       - selenium_chrome
       - mongodb
@@ -64,6 +63,8 @@ services:
   selenium_chrome:
     container_name: selenium_chrome
     image: selenium/standalone-chrome:130.0-chromedriver-130.0-20250414
+    restart: unless-stopped
+
     ports:
       - "4444:4444"
       - "7900:7900"
@@ -74,7 +75,7 @@ services:
   redis:
     container_name: redis
     image: redis:7.4-alpine
-    restart: always
+    restart: unless-stopped
     ports:
       - '6379:6379'
     command: redis-server
