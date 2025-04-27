@@ -11,13 +11,33 @@ services:
     ports:
       - '3000:3000' 
 
-    command: npm run start -- -p 3000
+    command: npm run start -- -H 0.0.0.0 -p 3000
 
     restart: unless-stopped
 
     depends_on:
       - mongodb
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`dev.huzaifairfan.com`)"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.tls.certresolver=le"
+    networks:
+      - video_feed
+      - web
 
+
+  mongodb:
+    container_name: mongodb
+    image: mongo:8-noble
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb:/data/db
+    restart: unless-stopped 
+    networks:
+      - video_feed
+      
   video_feed_crawler:
     container_name: video_feed_crawler        
     image: "ghcr.io/huzaifairfan/video_feed_crawler:0.1"
@@ -39,7 +59,8 @@ services:
       - selenium_chrome
       - mongodb
       - redis
-
+    networks:
+      - video_feed
   selenium_chrome:
     container_name: selenium_chrome
     image: selenium/standalone-chrome:130.0-chromedriver-130.0-20250414
@@ -47,15 +68,8 @@ services:
       - "4444:4444"
       - "7900:7900"
     shm_size: "2g"
-
-  mongodb:
-    container_name: mongodb
-    image: mongo:8-noble
-    ports:
-      - '27017:27017'
-    volumes:
-      - mongodb:/data/db
-    restart: unless-stopped 
+    networks:
+      - video_feed
 
   redis:
     container_name: redis
@@ -66,9 +80,20 @@ services:
     command: redis-server
     volumes: 
       - redis:/data
+    networks:
+      - video_feed
+
 
 volumes:
   redis:
     driver: local
   mongodb:
     driver: local
+
+
+
+networks:
+  video_feed:
+    driver: bridge
+  web:
+    external: true
