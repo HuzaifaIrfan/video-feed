@@ -35,6 +35,7 @@ jobs:
     - name: Run Selenium Test
       env:
         SELENIUM_URL: http://localhost:4444/wd/hub
+        APP_HOST: https://dev.huzaifairfan.com/
       run: |
         source venv/bin/activate
         pytest
