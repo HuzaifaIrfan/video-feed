@@ -14,10 +14,6 @@ services:
 
     command: npm run start -- -H 0.0.0.0 -p 3000
 
-
-    depends_on:
-      - mongodb
-
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.node.rule=Host(`dev.huzaifairfan.com`)"
@@ -28,21 +24,24 @@ services:
       - video_feed
       - web
 
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://0.0.0.0:3000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
-  mongodb:
-    container_name: mongodb
-    image: mongo:8-noble
-    restart: unless-stopped
-
-    ports:
-      - '27017:27017'
-    volumes:
-      - mongodb:/data/db
-    networks:
-      - video_feed
-      
   video_feed_crawler:
-    container_name: video_feed_crawler        
+    container_name: video_feed_crawler
+    build:
+      context: .
+      dockerfile: dockerfile
+      tags:
+        - "ghcr.io/huzaifairfan/video_feed_crawler:0.1"
+        
     image: "ghcr.io/huzaifairfan/video_feed_crawler:0.1"
     restart: unless-stopped
 
@@ -53,15 +52,46 @@ services:
       - DATABASE=video_feed_crawler
       - CELERY_BROKER_URL=redis://redis:6379/0
       
+      
     command: >
       sh -c "celery -A celery_app beat --loglevel=info & 
              celery -A celery_app worker --loglevel=info"
-    depends_on:
-      - selenium_chrome
-      - mongodb
-      - redis
+
     networks:
       - video_feed
+    depends_on:
+      selenium_chrome:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD", "celery", "-A", "celery_app", "inspect", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  mongodb:
+    container_name: mongodb
+    image: mongo:8-noble
+    restart: unless-stopped
+    
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb:/data/db
+    networks:
+      - video_feed
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+      
 
   selenium_chrome:
     container_name: selenium_chrome
@@ -71,21 +101,35 @@ services:
     ports:
       - "4444:4444"
       - "7900:7900"
-    shm_size: "2g"
     networks:
       - video_feed
+    shm_size: "2g"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4444/wd/hub/status"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   redis:
     container_name: redis
     image: redis:7.4-alpine
     restart: unless-stopped
+    command: redis-server 
+
     ports:
       - '6379:6379'
-    command: redis-server
     volumes: 
       - redis:/data
     networks:
       - video_feed
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
 
 
 volumes:
