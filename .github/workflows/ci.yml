@@ -1,0 +1,40 @@
+name: Continuous Integration Workflow
+
+on:
+  push:
+    branches:
+      - main  # You can change this to the branch you want to target
+
+jobs:
+
+
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      selenium:
+        image: selenium/standalone-chrome:130.0-chromedriver-130.0-20250414
+        ports:
+          - 4444:4444
+        options: >-
+          --health-cmd="curl -f http://localhost:4444/wd/hub/status || exit 1"
+          --health-interval=5s
+          --health-timeout=2s
+          --health-retries=10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Python Dependencies
+      run: |
+        python3 -m venv venv
+        source venv/bin/activate
+        pip install .
+
+    - name: Run Selenium Test
+      env:
+        SELENIUM_URL: http://localhost:4444/wd/hub
+      run: |
+        source venv/bin/activate
+        pytest
