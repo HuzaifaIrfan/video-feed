@@ -1,0 +1,47 @@
+services:
+  video_feed:
+    container_name: video_feed-dev
+    build:
+      context: .
+      dockerfile: dockerfile
+      tags:
+        - "localhost:5000/video_feed-dev:1.0"
+
+    environment:
+      - UV_LINK_MODE=copy
+      - SELENIUM_URL=http://selenium_chrome:4444/wd/hub
+      - TARGET_URL=http://host.docker.internal:3000
+
+      
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    volumes:
+      - uv-vscode-cache:/home/vscode/.cache/uv
+      
+    command: /bin/sh -c "while sleep 1000; do :; done"
+    
+    depends_on:
+      - selenium_chrome
+
+
+  selenium_chrome:
+    container_name: selenium_chrome-dev
+    image: selenium/standalone-chrome:130.0-chromedriver-130.0-20250414
+    restart: unless-stopped
+    
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "4445:4444"
+      - "7901:7900"
+    shm_size: "2g"
+
+
+volumes:
+  redis:
+    driver: local
+  mongodb:
+    driver: local
+  uv-vscode-cache:
+    driver: local
